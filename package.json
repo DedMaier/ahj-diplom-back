@@ -1,28 +1,27 @@
 {
   "name": "ahj-diplom-back",
   "version": "1.0.0",
-  "description": "",
-  "main": "server.js",
+  "main": "index.js",
   "scripts": {
-    "start": "nodemon server.js"
+    "prestart": "npm install",
+    "start": "forever server.js",
+    "watch": "forever -w server.js"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/DedMaier/ahj-diplom-back.git"
-  },
+  "repository": "git@github.com:DedMaier/ahj-diplom-back.git",
   "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/DedMaier/ahj-diplom-back/issues"
-  },
-  "homepage": "https://github.com/DedMaier/ahj-diplom-back#readme",
+  "license": "MIT",
   "dependencies": {
-    "express": "^4.18.1",
-    "node-fetch": "^2.6.7",
-    "uuid": "^8.3.2",
-    "ws": "^8.7.0"
+    "forever": "^0.14.2",
+    "http-event-stream": "0.2.0",
+    "koa": "2.13.1",
+    "koa-body": "4.2.0",
+    "koa-router": "10.0.0",
+    "koa-static": "5.0.0",
+    "node-fetch": "^2.7.0",
+    "uuid": "8.3.2",
+    "ws": "^7.5.9"
   },
-  "devDependencies": {
-    "nodemon": "^2.0.16"
+  "engines": {
+    "node": "14.x"
   }
 }

@@ -1,80 +1,139 @@
 const http = require('http');
-const express = require( 'express');
-const WebSocket = require( 'ws');
+const path = require('path');
+const Koa = require('koa');
+const Router = require('koa-router');
+const koaBody = require('koa-body');
+const koaStatic = require('koa-static');
+const fs = require('fs');
 const uuid = require('uuid');
-const Logic = require('./Logic');
+const WS = require('ws');
 
-const PORT = 8080;
-const logic = new Logic();
+const fetch = require('node-fetch');
 
-const app = express();
-const server = http.createServer(app);
+const app = new Koa();
 
-const webSocketServer = new WebSocket.Server({ server });
+const public = path.join(__dirname, '/public')
+app.use(koaStatic(public));
 
-webSocketServer.on('connection', (ws) => {
-  const id = uuid.v4();
-  ws.id = id; // id websocket
+// CORS
+app.use(async (ctx, next) => {
+  const origin = ctx.request.get('Origin');
+  if (!origin) {
+    return await next();
+  }
 
-  ws.on('message', msg => {
-      
-    const receivedData = JSON.parse(msg);
+  const headers = { 'Access-Control-Allow-Origin': '*', };
 
-    switch(receivedData.event) {
-      case 'newMessage':
-      case 'upLoadFile':
-        multipleSending(logic.processingData(receivedData), id);
-        break;
-      case 'geolocation':
-        ws.send(JSON.stringify(
-          logic.processingData(receivedData)  
-        ));
-        break;
-      case 'getLastMessage':
-        ws.send(JSON.stringify(
-          logic.getLastMessage(receivedData)
-        ));
-        break;
-      case 'getHistory':
-        ws.send(JSON.stringify(
-          logic.loadHistory(receivedData)
-        ));
-        break;
-      case 'command':      
-          logic.processingData(receivedData)
-          .then((data) => {
-            ws.send(JSON.stringify(data));
-          });    
-        break;
-      default:
+  if (ctx.request.method !== 'OPTIONS') {
+    ctx.response.set({ ...headers });
+    try {
+      return await next();
+    } catch (e) {
+      e.headers = { ...e.headers, ...headers };
+      throw e;
+    }
+  }
+
+  if (ctx.request.get('Access-Control-Request-Method')) {
+    ctx.response.set({
+      ...headers,
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH',
+    });
+
+    if (ctx.request.get('Access-Control-Request-Headers')) {
+      ctx.response.set('Access-Control-Allow-Headers', ctx.request.get('Access-Control-Request-Headers'));
     }
 
-  });
-
-  ws.on('close', () => {});
-
-  ws.on("error", e => ws.send(e));
+    ctx.response.status = 204;
+  }
 });
 
-server.listen(PORT, () => console.log("Server started 8080"));
 
-/**
- * Рассылка по всем сокетам. Если это команда, ответ получит только отправитель команды
- * @param {*} data - 
- */
-function multipleSending(data, id) {
+app.use(koaBody({
+  text: true,
+  urlencoded: true,
+  multipart: true,
+  json: true,
+}));
 
-  let isCommand = false;
-  // Если тип сообщение, проверяем на наличие команды
-  if (data.message) {
-    isCommand = (data.message.startsWith('/get'));
+const router = new Router();
+const server = http.createServer(app.callback())
+const wsServer = new WS.Server({ server });
+
+const arrMessges = [];
+
+let initMsg = false;
+
+router.get('/initmsg', async (ctx, next) => {
+  if (!initMsg) {
+    initMsg = true;
+    const resp = await fetch('http://localhost:8080/msg.json');
+    const body = await resp.text();
+    const arrInitMsg = JSON.parse(body);
+    arrMessges.push(...arrInitMsg);
+    ctx.response.body = arrMessges[0];
   }
-  
-  webSocketServer.clients.forEach((client) => {
-    if (!isCommand) {
-      client.send(JSON.stringify(data));
-    } else if (client.id === id) {
-        client.send(JSON.stringify(data));      
-    }    
+  ctx.response.body = 'ok';
+});
+
+router.get('/allmsg', async (ctx, next) => {
+  console.log('get index');
+  ctx.response.body = arrMessges;
+});
+
+router.get('/msg/:numb', async (ctx, next) => {
+  console.log('get numb', ctx.params.numb);
+  const endArr = arrMessges.length - ctx.params.numb;
+  const startArr = (endArr - 10) < 0 ? 0 : (endArr - 10);
+  const returnArr = arrMessges.slice(startArr, endArr).reverse();
+  ctx.response.body = returnArr;
+});
+
+router.post('/favorits', async (ctx, next) => {
+  const msgOb = JSON.parse(ctx.request.body);
+  const itemIndex = arrMessges.findIndex((item) => JSON.parse(item).id === msgOb.id);
+  const parsedObj = JSON.parse(arrMessges[itemIndex]);
+  parsedObj.favorit = msgOb.value;
+  arrMessges[itemIndex] = JSON.stringify(parsedObj);
+  const obj = {
+    type: 'change-favorit',
+    id: msgOb.id,
+    value: msgOb.value,
+  };
+  ctx.response.status = 204
+});
+
+wsServer.on('connection', (ws, req) => {
+  console.log('connection');
+  ws.on('message', (msg) => {
+    arrMessges.push(msg);
+
+    [...wsServer.clients]
+    .filter(o => {
+      return o.readyState === WS.OPEN;
+    })
+    .forEach(o => o.send(msg));
   });
-}
+
+  ws.on('close', (msg) => {
+    console.log('close');
+    [...wsServer.clients]
+
+    .filter(o => {
+      return o.readyState === WS.OPEN;
+    })
+    .forEach(o => o.send(JSON.stringify({type: 'del user'})));
+    ws.close();
+  });
+
+  [...wsServer.clients]
+    .filter(o => {
+      return o.readyState === WS.OPEN;
+    })
+    .forEach(o => o.send(JSON.stringify({type: 'add user'})));
+
+});
+
+app.use(router.routes()).use(router.allowedMethods());
+const port = process.env.PORT || 8080;
+server.listen(port);
