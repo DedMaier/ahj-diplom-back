@@ -4,7 +4,6 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "nodemon server.js"
   },
   "repository": {
@@ -18,12 +17,12 @@
   },
   "homepage": "https://github.com/DedMaier/ahj-diplom-back#readme",
   "dependencies": {
-    "express": "^4.18.2",
-    "node-fetch": "^3.3.1",
-    "uuid": "^9.0.0",
-    "ws": "^8.13.0"
+    "express": "^4.18.1",
+    "node-fetch": "^2.6.7",
+    "uuid": "^8.3.2",
+    "ws": "^8.7.0"
   },
   "devDependencies": {
-    "nodemon": "^2.0.22"
+    "nodemon": "^2.0.16"
   }
 }
