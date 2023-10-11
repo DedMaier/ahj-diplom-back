@@ -1,4 +1,4 @@
-name: Netology AHJ
+name: ahj-diplom-back
 
 on: [push, pull_request]
 
